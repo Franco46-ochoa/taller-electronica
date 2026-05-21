@@ -1,0 +1,19 @@
+@use 'bootstrap/scss/bootstrap';
+@import url('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css');
+
+* { box-sizing: border-box; }
+html, body { 
+  height: 100%; 
+  margin: 0; 
+  padding: 0; 
+  background: #3A4452;
+}
+
+input[type="number"] { -moz-appearance: textfield; }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+select option {
+  background: #3A4452;
+  color: #ffffff;
+}
