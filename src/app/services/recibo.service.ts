@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore, collection, addDoc, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
+import { initializeApp, getApp, getApps, FirebaseApp } from 'firebase/app';
+import { getFirestore, Firestore, collection, addDoc, getDocs, getDoc, doc, updateDoc, deleteDoc, query, where, runTransaction, orderBy, limit } from 'firebase/firestore';
 import { firebaseConfig } from '../../environments/firebase';
 import { Recibo, Balance } from '../models/recibo.model';
 
@@ -11,21 +11,37 @@ export class ReciboService {
   private app: FirebaseApp;
   private db: Firestore;
   private receiptsCollectionName = 'recibos';
-  private localCounter = 1;
+  private counterDoc = 'contadores/recibos';
 
   constructor() {
-    this.app = initializeApp(firebaseConfig);
+    this.app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     this.db = getFirestore(this.app);
   }
 
-  private generarId(): string {
-    const num = this.localCounter;
-    this.localCounter++;
+  private async generarId(): Promise<string> {
+    const counterRef = doc(this.db, this.counterDoc);
+
+    let base = 0;
+    if (!(await getDoc(counterRef)).exists()) {
+      const q = query(collection(this.db, this.receiptsCollectionName), orderBy('id', 'desc'), limit(1));
+      const ultimos = await getDocs(q);
+      if (!ultimos.empty) {
+        const match = /(\d+)/.exec(ultimos.docs[0].data()['id'] || '');
+        if (match) base = parseInt(match[1], 10);
+      }
+    }
+
+    const num = await runTransaction(this.db, async (tx) => {
+      const snap = await tx.get(counterRef);
+      const siguiente = snap.exists() ? (snap.data()['ultimo'] || 0) + 1 : base + 1;
+      tx.set(counterRef, { ultimo: siguiente });
+      return siguiente;
+    });
     return `N°${num.toString().padStart(5, '0')}`;
   }
 
   async agregarRecibo(recibo: Omit<Recibo, 'id' | 'estado' | 'costoReparacion'>): Promise<Recibo> {
-    const nuevoId = this.generarId();
+    const nuevoId = await this.generarId();
     const nuevo: Recibo = {
       ...recibo,
       id: nuevoId,
@@ -33,10 +49,16 @@ export class ReciboService {
       costoReparacion: 0
     };
 
-    await addDoc(collection(this.db, this.receiptsCollectionName), {
+    const firestoreOp = addDoc(collection(this.db, this.receiptsCollectionName), {
       ...nuevo,
       fecha: nuevo.fecha.toISOString()
     });
+
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Firebase no respondio — revisa tu conexion o la configuracion de Firestore')), 15000)
+    );
+
+    await Promise.race([firestoreOp, timeout]);
 
     return nuevo;
   }
@@ -62,6 +84,30 @@ export class ReciboService {
       costoReparacion: costo,
       observaciones: observacionesFinales || ''
     });
+
+    return true;
+  }
+
+  async editarRecibo(id: string, cambios: Partial<Recibo>): Promise<boolean> {
+    const q = query(collection(this.db, this.receiptsCollectionName), where('id', '==', id));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) { return false; }
+
+    const docRef = doc(this.db, this.receiptsCollectionName, querySnapshot.docs[0].id);
+    await updateDoc(docRef, { ...cambios });
+
+    return true;
+  }
+
+  async eliminarRecibo(id: string): Promise<boolean> {
+    const q = query(collection(this.db, this.receiptsCollectionName), where('id', '==', id));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) { return false; }
+
+    const docRef = doc(this.db, this.receiptsCollectionName, querySnapshot.docs[0].id);
+    await deleteDoc(docRef);
 
     return true;
   }

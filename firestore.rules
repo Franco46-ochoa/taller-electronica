@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isWhitelisted() {
+      return request.auth != null
+        && request.auth.token.email in [
+          'electronica.zenner@gmail.com'
+          // TODO: agregar los correos autorizados restantes
+        ];
+    }
+    match /{document=**} {
+      allow read, write: if isWhitelisted();
+    }
+  }
+}

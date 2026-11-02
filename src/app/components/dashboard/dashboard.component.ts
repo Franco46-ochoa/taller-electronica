@@ -1,8 +1,13 @@
 import { Component, inject, signal, ViewChild, ElementRef, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import { ReciboService } from '../../services/recibo.service';
+import { AuthService } from '../../services/auth.service';
 import { Recibo, Balance } from '../../models/recibo.model';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
@@ -16,10 +21,20 @@ import jsPDF from 'jspdf';
 export class DashboardComponent implements OnInit {
   private fb = inject(FormBuilder);
   private servicio = inject(ReciboService);
+  auth = inject(AuthService);
+  private router = inject(Router);
+
+  async logout() {
+    await this.auth.logout();
+    this.router.navigate(['/login']);
+  }
 
   @ViewChild('reciboPrint') reciboPrint!: ElementRef;
+  @ViewChild('pdfPrint') pdfPrint!: ElementRef;
 
-  tabActiva = signal<'ingreso' | 'salida' | 'historial' | 'balance'>('ingreso');
+  tabActiva = signal<'ingreso' | 'salida' | 'historial' | 'balance' | 'presupuesto'>('ingreso');
+  pdfRecibo = signal<Recibo | null>(null);
+  pdfTipo = signal<'ingreso' | 'entrega' | 'presupuesto'>('ingreso');
 
   formularioIngreso: FormGroup = this.fb.group({
     clienteNombre: ['', Validators.required],
@@ -38,10 +53,28 @@ export class DashboardComponent implements OnInit {
     observacionesFinales: ['']
   });
 
+  formularioPresupuesto: FormGroup = this.fb.group({
+    buscarId: [''],
+    diagnostico: ['', Validators.required],
+    costo: [0, [Validators.required, Validators.min(0)]]
+  });
+
   filtroHistorial = this.fb.group({
     cliente: [''],
     marca: [''],
     estado: ['']
+  });
+
+  formularioEdicion: FormGroup = this.fb.group({
+    clienteNombre: ['', Validators.required],
+    clienteDireccion: ['', Validators.required],
+    clienteTelefono: ['', Validators.required],
+    aparatoTipo: ['', Validators.required],
+    aparatoMarca: ['', Validators.required],
+    aparatoModelo: ['', Validators.required],
+    aparatoNumSerie: ['', Validators.required],
+    observaciones: ['', Validators.required],
+    costoReparacion: [0, [Validators.required, Validators.min(0)]]
   });
 
   recibosFiltrados = signal<Recibo[]>([]);
@@ -51,9 +84,20 @@ export class DashboardComponent implements OnInit {
   showModalEntrega = signal(false);
   selectedPendiente = signal<Recibo | null>(null);
   reciboEntregado = signal<Recibo | null>(null);
+  reciboEditando = signal<Recibo | null>(null);
+  showModalEditar = signal(false);
+  submittingEdicion = signal(false);
+  reciboAEliminar = signal<Recibo | null>(null);
+  showModalEliminar = signal(false);
+  submittingEliminacion = signal(false);
+  reciboPresupuesto = signal<Recibo | null>(null);
+  presupuestoGuardado = signal<Recibo | null>(null);
+  showModalPresupuesto = signal(false);
+  submittingPresupuesto = signal(false);
   balance = signal<Balance>({ totalIngresados: 0, totalPendientes: 0, totalEntregados: 0, gananciasTotales: 0 });
   loading = signal(true);
   submitting = signal(false);
+  errorMsg = signal<string | null>(null);
 
   ngOnInit() {
     this.cargarDatos();
@@ -89,11 +133,77 @@ export class DashboardComponent implements OnInit {
     await this.actualizarHistorial();
   }
 
-  cambiarTab(tab: 'ingreso' | 'salida' | 'historial' | 'balance') {
+  cambiarTab(tab: 'ingreso' | 'salida' | 'historial' | 'balance' | 'presupuesto') {
     this.tabActiva.set(tab);
-    if (tab === 'salida') this.actualizarPendientes();
+    this.errorMsg.set(null);
+    if (tab === 'salida' || tab === 'presupuesto') this.actualizarPendientes();
     if (tab === 'historial') this.actualizarHistorial();
     if (tab === 'balance') this.actualizarBalance();
+  }
+
+  async buscarReciboPresupuesto() {
+    const id = this.formularioPresupuesto.get('buscarId')?.value;
+    if (!id) return;
+    const found = await this.servicio.buscarPorId(id);
+    if (found && found.estado === 'Pendiente') {
+      this.seleccionarParaPresupuesto(found);
+    } else {
+      this.reciboPresupuesto.set(null);
+      this.errorMsg.set(found
+        ? `El recibo ${id} ya fue entregado.`
+        : `No se encontró ningún recibo con el ID ${id}.`);
+    }
+  }
+
+  seleccionarParaPresupuesto(recibo: Recibo) {
+    this.reciboPresupuesto.set(recibo);
+    this.formularioPresupuesto.patchValue({
+      buscarId: recibo.id,
+      diagnostico: recibo.presupuesto?.diagnostico || '',
+      costo: recibo.presupuesto?.costo ?? 0
+    });
+  }
+
+  async guardarPresupuesto() {
+    const recibo = this.reciboPresupuesto();
+    if (!recibo || this.formularioPresupuesto.invalid) {
+      this.formularioPresupuesto.markAllAsTouched();
+      return;
+    }
+
+    this.errorMsg.set(null);
+    this.submittingPresupuesto.set(true);
+
+    try {
+      const f = this.formularioPresupuesto.value;
+      await this.servicio.editarRecibo(recibo.id, {
+        presupuesto: {
+          diagnostico: f.diagnostico,
+          costo: f.costo,
+          fecha: new Date().toISOString()
+        }
+      });
+
+      const updated = await this.servicio.buscarPorId(recibo.id);
+      this.presupuestoGuardado.set(updated || null);
+      this.showModalPresupuesto.set(true);
+      await this.actualizarPendientes();
+      await this.actualizarHistorial();
+    } catch (error: any) {
+      this.errorMsg.set('Error al guardar presupuesto: ' + (error?.message || ''));
+    } finally {
+      this.submittingPresupuesto.set(false);
+    }
+  }
+
+  cerrarModalPresupuesto() {
+    this.showModalPresupuesto.set(false);
+    this.presupuestoGuardado.set(null);
+  }
+
+  limpiarSeleccionPresupuesto() {
+    this.reciboPresupuesto.set(null);
+    this.formularioPresupuesto.reset({ buscarId: '', diagnostico: '', costo: 0 });
   }
 
   async buscarPendiente() {
@@ -139,12 +249,103 @@ export class DashboardComponent implements OnInit {
     this.reciboEntregado.set(null);
   }
 
+  abrirEdicion(recibo: Recibo) {
+    this.reciboEditando.set(recibo);
+    this.formularioEdicion.patchValue({
+      clienteNombre: recibo.cliente.nombre,
+      clienteDireccion: recibo.cliente.direccion,
+      clienteTelefono: recibo.cliente.telefono,
+      aparatoTipo: recibo.aparato.tipo,
+      aparatoMarca: recibo.aparato.marca,
+      aparatoModelo: recibo.aparato.modelo,
+      aparatoNumSerie: recibo.aparato.numSerie,
+      observaciones: recibo.observaciones,
+      costoReparacion: recibo.costoReparacion
+    });
+    this.showModalEditar.set(true);
+  }
+
+  async guardarEdicion() {
+    const recibo = this.reciboEditando();
+    if (!recibo || this.formularioEdicion.invalid) {
+      this.formularioEdicion.markAllAsTouched();
+      return;
+    }
+
+    this.submittingEdicion.set(true);
+
+    try {
+      const f = this.formularioEdicion.value;
+      await this.servicio.editarRecibo(recibo.id, {
+        cliente: {
+          nombre: f.clienteNombre,
+          direccion: f.clienteDireccion,
+          telefono: f.clienteTelefono
+        },
+        aparato: {
+          tipo: f.aparatoTipo,
+          marca: f.aparatoMarca,
+          modelo: f.aparatoModelo,
+          numSerie: f.aparatoNumSerie
+        },
+        observaciones: f.observaciones,
+        costoReparacion: f.costoReparacion
+      });
+
+      this.showModalEditar.set(false);
+      this.reciboEditando.set(null);
+      await this.actualizarPendientes();
+      await this.actualizarHistorial();
+      await this.actualizarBalance();
+    } catch (error: any) {
+      this.errorMsg.set('Error al guardar cambios: ' + (error?.message || ''));
+    } finally {
+      this.submittingEdicion.set(false);
+    }
+  }
+
+  cerrarModalEditar() {
+    this.showModalEditar.set(false);
+    this.reciboEditando.set(null);
+  }
+
+  confirmarEliminacion(recibo: Recibo) {
+    this.reciboAEliminar.set(recibo);
+    this.showModalEliminar.set(true);
+  }
+
+  async ejecutarEliminacion() {
+    const recibo = this.reciboAEliminar();
+    if (!recibo) return;
+
+    this.submittingEliminacion.set(true);
+
+    try {
+      await this.servicio.eliminarRecibo(recibo.id);
+      this.showModalEliminar.set(false);
+      this.reciboAEliminar.set(null);
+      await this.actualizarPendientes();
+      await this.actualizarHistorial();
+      await this.actualizarBalance();
+    } catch (error: any) {
+      this.errorMsg.set('Error al eliminar: ' + (error?.message || ''));
+    } finally {
+      this.submittingEliminacion.set(false);
+    }
+  }
+
+  cancelarEliminacion() {
+    this.showModalEliminar.set(false);
+    this.reciboAEliminar.set(null);
+  }
+
   async generarRecibo() {
     if (this.formularioIngreso.invalid) {
       this.formularioIngreso.markAllAsTouched();
       return;
     }
 
+    this.errorMsg.set(null);
     this.submitting.set(true);
 
     try {
@@ -171,8 +372,8 @@ export class DashboardComponent implements OnInit {
       await this.actualizarPendientes();
       await this.actualizarHistorial();
       await this.actualizarBalance();
-    } catch (error) {
-      console.error('Error generando recibo:', error);
+    } catch (error: any) {
+      this.errorMsg.set('Error al guardar: ' + (error?.message || 'Verifica la conexion y la configuracion de Firestore'));
     } finally {
       this.submitting.set(false);
     }
@@ -183,16 +384,53 @@ export class DashboardComponent implements OnInit {
     this.reciboGenerado.set(null);
   }
 
+  cerrarError() {
+    this.errorMsg.set(null);
+  }
+
   async descargarPDF() {
-    const elemento = this.reciboPrint.nativeElement;
+    const recibo = this.reciboGenerado();
+    if (recibo) await this.generarPDF(recibo, 'ingreso');
+  }
+
+  async descargarPDFIngreso(recibo: Recibo) {
+    await this.generarPDF(recibo, 'ingreso');
+  }
+
+  async descargarPDFEntregaRecibo(recibo: Recibo) {
+    await this.generarPDF(recibo, 'entrega');
+  }
+
+  async descargarPDFPresupuesto(recibo: Recibo) {
+    await this.generarPDF(recibo, 'presupuesto');
+  }
+
+  private async generarPDF(recibo: Recibo, tipo: 'ingreso' | 'entrega' | 'presupuesto') {
+    this.pdfRecibo.set(recibo);
+    this.pdfTipo.set(tipo);
+    await new Promise(r => setTimeout(r, 100));
+    const elemento = this.pdfPrint.nativeElement;
     const canvas = await html2canvas(elemento, { scale: 2, useCORS: true });
     const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
     pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    const recibo = this.reciboGenerado();
-    pdf.save(`Recibo_${recibo?.id || 'electronica'}.pdf`);
+    const prefijo = tipo === 'entrega' ? 'Entrega' : tipo === 'presupuesto' ? 'Presupuesto' : 'Recibo';
+    const fileName = `${prefijo}_${recibo.id}.pdf`;
+
+    if (Capacitor.isNativePlatform()) {
+      const base64 = pdf.output('datauristring').split(',')[1];
+      const result = await Filesystem.writeFile({
+        path: fileName,
+        data: base64,
+        directory: Directory.Documents
+      });
+      await Share.share({ title: fileName, url: result.uri });
+    } else {
+      pdf.save(fileName);
+    }
+    this.pdfRecibo.set(null);
   }
 
   formatDate(date: Date): string {

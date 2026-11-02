@@ -43,6 +43,7 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
+            "baseHref": "/taller-electronica/",
             "browser": "src/main.ts",
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
@@ -84,6 +85,11 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "capacitor": {
+              "baseHref": "./",
+              "optimization": true,
+              "outputHashing": "all"
             }
           },
           "defaultConfiguration": "production"
@@ -96,6 +102,9 @@
             },
             "development": {
               "buildTarget": "taller-electronica:build:development"
+            },
+            "capacitor": {
+              "buildTarget": "taller-electronica:build:capacitor"
             }
           },
           "defaultConfiguration": "development"

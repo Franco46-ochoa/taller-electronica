@@ -3,6 +3,12 @@
     <div class="header-content">
       <img src="assets/Logo-zenners.jpg" alt="Logo" class="header-logo">
     </div>
+    <div class="header-user">
+      <span class="user-email"><i class="bi bi-person-circle"></i> {{ auth.currentUser()?.email }}</span>
+      <button class="btn-logout" (click)="logout()">
+        <i class="bi bi-box-arrow-left"></i> Cerrar sesión
+      </button>
+    </div>
   </header>
 
   <div class="page-subtitle">Gestión de Taller de Reparaciones</div>
@@ -10,6 +16,9 @@
   <nav class="nav-tabs-custom">
     <button [class.active]="tabActiva() === 'ingreso'" (click)="cambiarTab('ingreso')">
       <i class="bi bi-plus-circle"></i> Ingreso (Nuevo Recibo)
+    </button>
+    <button [class.active]="tabActiva() === 'presupuesto'" (click)="cambiarTab('presupuesto')">
+      <i class="bi bi-file-earmark-text"></i> Presupuesto
     </button>
     <button [class.active]="tabActiva() === 'salida'" (click)="cambiarTab('salida')">
       <i class="bi bi-box-arrow-right"></i> Salida (Entregas)
@@ -30,9 +39,16 @@
   }
 
   <main class="content-area">
-    @if (tabActiva() === 'ingreso') {
+     @if (tabActiva() === 'ingreso') {
       <section class="tab-content">
         <h2 class="section-title">Nuevo Ingreso de Equipo</h2>
+        @if (errorMsg()) {
+          <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            {{ errorMsg() }}
+            <button type="button" class="btn-close" (click)="cerrarError()" aria-label="Cerrar"></button>
+          </div>
+        }
         <form [formGroup]="formularioIngreso" class="recibo-form">
           <div class="card">
             <div class="card-header"><h5>Datos del Cliente</h5></div>
@@ -119,10 +135,126 @@
       </section>
     }
 
+    @if (tabActiva() === 'presupuesto') {
+      <section class="tab-content">
+        <h2 class="section-title">Presupuesto de Reparación</h2>
+        @if (errorMsg()) {
+          <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            {{ errorMsg() }}
+            <button type="button" class="btn-close" (click)="cerrarError()" aria-label="Cerrar"></button>
+          </div>
+        }
+        <div class="card mb-4" [formGroup]="formularioPresupuesto">
+          <div class="card-body">
+            <div class="row align-items-end">
+              <div class="col-md-6">
+                <label class="form-label">Buscar por ID de Recibo</label>
+                <div class="input-group">
+                  <input type="text" class="form-control" formControlName="buscarId" placeholder="N°00001">
+                  <button class="btn btn-secondary" (click)="buscarReciboPresupuesto()">
+                    <i class="bi bi-search"></i> Buscar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        @if (!reciboPresupuesto()) {
+          @if (pendientes().length > 0) {
+            <h5 class="mt-4">Equipos Pendientes</h5>
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Fecha</th>
+                  <th>Cliente</th>
+                  <th>Tipo</th>
+                  <th>Marca</th>
+                  <th>Modelo</th>
+                  <th>Presupuesto</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of pendientes(); track r.id) {
+                  <tr>
+                    <td><strong>{{ r.id }}</strong></td>
+                    <td>{{ formatDate(r.fecha) }}</td>
+                    <td>{{ r.cliente.nombre }}</td>
+                    <td>{{ r.aparato.tipo }}</td>
+                    <td>{{ r.aparato.marca }}</td>
+                    <td>{{ r.aparato.modelo }}</td>
+                    <td>
+                      @if (r.presupuesto) {
+                        <span class="badge bg-info">Cargado</span>
+                      } @else {
+                        <span class="text-muted">-</span>
+                      }
+                    </td>
+                    <td>
+                      <button class="btn btn-primary btn-sm" (click)="seleccionarParaPresupuesto(r)">
+                        <i class="bi bi-file-earmark-text"></i> Presupuestar
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <div class="alert alert-info">No hay equipos pendientes para presupuestar.</div>
+          }
+        }
+
+        @if (reciboPresupuesto(); as sel) {
+          <div class="alert alert-info mb-3">
+            <strong>Equipo:</strong> {{ sel.aparato.tipo }} - {{ sel.aparato.marca }} {{ sel.aparato.modelo }}<br>
+            <strong>Cliente:</strong> {{ sel.cliente.nombre }} — {{ sel.cliente.telefono }}
+          </div>
+          <form [formGroup]="formularioPresupuesto" class="recibo-form">
+            <div class="card">
+              <div class="card-header"><h5>Diagnóstico</h5></div>
+              <div class="card-body">
+                <textarea class="form-control" rows="4" formControlName="diagnostico"
+                          placeholder="Describa el diagnóstico del equipo y el trabajo a realizar..."
+                          [class.is-invalid]="formularioPresupuesto.get('diagnostico')?.touched && formularioPresupuesto.get('diagnostico')?.invalid"></textarea>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h5>Costo de la Reparación</h5></div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-4">
+                    <label class="form-label">Costo ($)</label>
+                    <input type="number" class="form-control" formControlName="costo" min="0" step="0.01"
+                           [class.is-invalid]="formularioPresupuesto.get('costo')?.touched && formularioPresupuesto.get('costo')?.invalid">
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="text-center">
+              <button type="button" class="btn btn-secondary btn-lg me-2" (click)="limpiarSeleccionPresupuesto()">
+                <i class="bi bi-x-circle"></i> Cancelar
+              </button>
+              <button type="button" class="btn btn-primary btn-lg px-5" (click)="guardarPresupuesto()" [disabled]="submittingPresupuesto()">
+                @if (submittingPresupuesto()) {
+                  <span class="spinner-border spinner-border-sm me-2"></span>
+                  Guardando...
+                } @else {
+                  <i class="bi bi-check2-circle"></i> Guardar Presupuesto
+                }
+              </button>
+            </div>
+          </form>
+        }
+      </section>
+    }
+
     @if (tabActiva() === 'salida') {
       <section class="tab-content">
         <h2 class="section-title">Entrega de Equipos</h2>
-        <div class="card mb-4">
+        <div class="card mb-4" [formGroup]="formularioEntrega">
           <div class="card-body">
             <div class="row align-items-end">
               <div class="col-md-6">
@@ -164,6 +296,12 @@
                   <td>{{ r.aparato.modelo }}</td>
                   <td><span class="badge bg-warning">{{ r.estado }}</span></td>
                   <td>
+                    <button class="btn btn-outline-info btn-sm me-1" (click)="abrirEdicion(r)" title="Editar">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm me-1" (click)="confirmarEliminacion(r)" title="Eliminar">
+                      <i class="bi bi-trash"></i>
+                    </button>
                     <button class="btn btn-success btn-sm" (click)="seleccionarPendiente(r)">
                       <i class="bi bi-check2-all"></i> Entregar
                     </button>
@@ -181,7 +319,7 @@
     @if (tabActiva() === 'historial') {
       <section class="tab-content">
         <h2 class="section-title">Base de Datos Histórica</h2>
-        <div class="card mb-4">
+        <div class="card mb-4" [formGroup]="filtroHistorial">
           <div class="card-body">
             <div class="row">
               <div class="col-md-4">
@@ -217,6 +355,8 @@
               <th>N° Serie</th>
               <th>Estado</th>
               <th>Costo</th>
+              <th>PDF</th>
+              <th>Editar</th>
             </tr>
           </thead>
           <tbody>
@@ -238,6 +378,25 @@
                   }
                 </td>
                 <td>{{ r.costoReparacion > 0 ? formatCurrency(r.costoReparacion) : '-' }}</td>
+                <td>
+                  @if (r.estado === 'Entregado') {
+                    <button class="btn btn-outline-success btn-sm" (click)="descargarPDFEntregaRecibo(r)" title="Descargar comprobante de entrega">
+                      <i class="bi bi-file-earmark-pdf"></i>
+                    </button>
+                  } @else {
+                    <button class="btn btn-outline-danger btn-sm" (click)="descargarPDFIngreso(r)" title="Descargar recibo de ingreso">
+                      <i class="bi bi-file-earmark-pdf"></i>
+                    </button>
+                  }
+                </td>
+                <td>
+                  <button class="btn btn-outline-info btn-sm me-1" (click)="abrirEdicion(r)" title="Editar recibo">
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                  <button class="btn btn-outline-danger btn-sm" (click)="confirmarEliminacion(r)" title="Eliminar recibo">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </td>
               </tr>
             }
           </tbody>
@@ -366,6 +525,34 @@
     </div>
   }
 
+  @if (showModalPresupuesto()) {
+    <div class="modal-overlay" (click)="cerrarModalPresupuesto()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h5 class="modal-title">Presupuesto Guardado</h5>
+          <button type="button" class="btn-close" (click)="cerrarModalPresupuesto()">×</button>
+        </div>
+        <div class="modal-body text-center">
+          <i class="bi bi-check-circle-fill" style="font-size: 4rem; color: #27ae60;"></i>
+          <h4 class="mt-3">El presupuesto fue guardado exitosamente</h4>
+          @if (presupuestoGuardado(); as r) {
+            <div class="mt-3 p-3" style="background: #f8f9fa; border-radius: 8px;">
+              <p><strong>Recibo:</strong> {{ r.id }}</p>
+              <p><strong>Cliente:</strong> {{ r.cliente.nombre }}</p>
+              <p><strong>Costo:</strong> {{ formatCurrency(r.presupuesto?.costo || 0) }}</p>
+            </div>
+          }
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="cerrarModalPresupuesto()">Cerrar</button>
+          <button type="button" class="btn btn-primary" (click)="descargarPDFPresupuesto(presupuestoGuardado()!)">
+            <i class="bi bi-file-earmark-pdf"></i> Descargar PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
   @if (showModalEntrega()) {
     <div class="modal-overlay" (click)="cerrarModalEntrega()">
       <div class="modal-content" (click)="$event.stopPropagation()">
@@ -418,9 +605,287 @@
           }
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-primary" (click)="cerrarModalEntrega()">Aceptar</button>
+          <button type="button" class="btn btn-secondary" (click)="cerrarModalEntrega()">Cerrar</button>
+          <button type="button" class="btn btn-primary" (click)="descargarPDFEntregaRecibo(reciboEntregado()!)">
+            <i class="bi bi-file-earmark-pdf"></i> Descargar Comprobante
+          </button>
         </div>
       </div>
     </div>
   }
+
+  @if (showModalEditar()) {
+    <div class="modal-overlay" (click)="cerrarModalEditar()">
+      <div class="modal-content modal-lg" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h5 class="modal-title">Editar Recibo — {{ reciboEditando()?.id }}</h5>
+          <button type="button" class="btn-close" (click)="cerrarModalEditar()">×</button>
+        </div>
+        <div class="modal-body">
+          <form [formGroup]="formularioEdicion">
+            <div class="card">
+              <div class="card-header"><h5>Datos del Cliente</h5></div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-4 mb-3">
+                    <label class="form-label">Nombre Completo</label>
+                    <input type="text" class="form-control" formControlName="clienteNombre">
+                  </div>
+                  <div class="col-md-4 mb-3">
+                    <label class="form-label">Dirección</label>
+                    <input type="text" class="form-control" formControlName="clienteDireccion">
+                  </div>
+                  <div class="col-md-4 mb-3">
+                    <label class="form-label">Teléfono</label>
+                    <input type="tel" class="form-control" formControlName="clienteTelefono">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><h5>Datos del Aparato</h5></div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-3 mb-3">
+                    <label class="form-label">Tipo de Aparato</label>
+                    <select class="form-select" formControlName="aparatoTipo">
+                      <option value="">Seleccionar...</option>
+                      <option value="Televisor">Televisor</option>
+                      <option value="Monitor">Monitor</option>
+                      <option value="Laptop">Laptop</option>
+                      <option value="Computadora">Computadora</option>
+                      <option value="Aire Acondicionado">Aire Acondicionado</option>
+                      <option value="Heladera">Heladera</option>
+                      <option value="Lavadora">Lavadora</option>
+                      <option value="Microondas">Microondas</option>
+                      <option value="Otro">Otro</option>
+                    </select>
+                  </div>
+                  <div class="col-md-3 mb-3">
+                    <label class="form-label">Marca</label>
+                    <input type="text" class="form-control" formControlName="aparatoMarca">
+                  </div>
+                  <div class="col-md-3 mb-3">
+                    <label class="form-label">Modelo</label>
+                    <input type="text" class="form-control" formControlName="aparatoModelo">
+                  </div>
+                  <div class="col-md-3 mb-3">
+                    <label class="form-label">Número de Serie</label>
+                    <input type="text" class="form-control" formControlName="aparatoNumSerie">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><h5>Observaciones</h5></div>
+              <div class="card-body">
+                <textarea class="form-control" rows="3" formControlName="observaciones"></textarea>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><h5>Costo de Reparación</h5></div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-4">
+                    <label class="form-label">Costo ($)</label>
+                    <input type="number" class="form-control" formControlName="costoReparacion" min="0" step="0.01">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="cerrarModalEditar()">Cancelar</button>
+          <button type="button" class="btn btn-primary" (click)="guardarEdicion()" [disabled]="submittingEdicion()">
+            @if (submittingEdicion()) {
+              <span class="spinner-border spinner-border-sm me-2"></span>
+              Guardando...
+            } @else {
+              <i class="bi bi-save"></i> Guardar Cambios
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (showModalEliminar()) {
+    <div class="modal-overlay" (click)="cancelarEliminacion()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="modal-header" style="background: linear-gradient(135deg, #c62828, #b71c1c);">
+          <h5 class="modal-title">Confirmar Eliminación</h5>
+          <button type="button" class="btn-close" (click)="cancelarEliminacion()">×</button>
+        </div>
+        <div class="modal-body text-center">
+          <i class="bi bi-exclamation-triangle-fill" style="font-size: 3rem; color: #e74c3c;"></i>
+          <h4 class="mt-3">¿Estás seguro?</h4>
+          @if (reciboAEliminar(); as r) {
+            <p class="mt-2">Se eliminará permanentemente el recibo <strong>{{ r.id }}</strong> de <strong>{{ r.cliente.nombre }}</strong>.</p>
+            <p class="text-muted">Equipo: {{ r.aparato.tipo }} - {{ r.aparato.marca }} {{ r.aparato.modelo }}</p>
+          }
+          <p class="text-danger mt-2">Esta acción no se puede deshacer.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="cancelarEliminacion()">Cancelar</button>
+          <button type="button" class="btn btn-danger" (click)="ejecutarEliminacion()" [disabled]="submittingEliminacion()">
+            @if (submittingEliminacion()) {
+              <span class="spinner-border spinner-border-sm me-2"></span>
+              Eliminando...
+            } @else {
+              <i class="bi bi-trash"></i> Eliminar
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <div #pdfPrint class="pdf-off-screen">
+    @if (pdfRecibo(); as r) {
+      @if (pdfTipo() === 'ingreso') {
+        <div class="recibo-preview">
+          <div class="recibo-header-row">
+            <div class="recibo-contacto">
+              <p><strong>Email:</strong> electronica.zenner&#64;gmail.com</p>
+              <p><strong>Teléfono:</strong> 3886104298</p>
+              <p><strong>Responsable:</strong> Juan Carlos Ochoa</p>
+            </div>
+            <div class="recibo-logo">
+              <h3>Electrónica Zenner's</h3>
+            </div>
+          </div>
+          <h2 class="recibo-titulo">RECIBO DE RECEPCIÓN DE APARATO ELECTRÓNICO</h2>
+          <div class="recibo-id">{{ r.id }}</div>
+          <div class="recibo-cliente">
+            <h4>Datos del Cliente</h4>
+            <table>
+              <tr><td><strong>Nombre:</strong></td><td>{{ r.cliente.nombre }}</td></tr>
+              <tr><td><strong>Dirección:</strong></td><td>{{ r.cliente.direccion }}</td></tr>
+              <tr><td><strong>Teléfono:</strong></td><td>{{ r.cliente.telefono }}</td></tr>
+            </table>
+          </div>
+          <div class="recibo-aparato">
+            <h4>Detalles del Equipo</h4>
+            <table>
+              <thead><tr><th>Tipo</th><th>Marca</th><th>Modelo</th><th>N° Serie</th></tr></thead>
+              <tbody><tr><td>{{ r.aparato.tipo }}</td><td>{{ r.aparato.marca }}</td><td>{{ r.aparato.modelo }}</td><td>{{ r.aparato.numSerie }}</td></tr></tbody>
+            </table>
+          </div>
+          <div class="recibo-observaciones">
+            <h4>Observaciones</h4>
+            <div class="observaciones-box">{{ r.observaciones }}</div>
+          </div>
+          <div class="recibo-footer">
+            <div class="firma-line"><span>Firma del Técnico</span></div>
+            <div class="firma-line"><span>Firma del Cliente</span></div>
+          </div>
+        </div>
+      }
+      @if (pdfTipo() === 'entrega') {
+        <div class="recibo-preview">
+          <div class="recibo-header-row">
+            <div class="recibo-contacto">
+              <p><strong>Email:</strong> electronica.zenner&#64;gmail.com</p>
+              <p><strong>Teléfono:</strong> 3886104298</p>
+              <p><strong>Responsable:</strong> Juan Carlos Ochoa</p>
+            </div>
+            <div class="recibo-logo">
+              <h3>Electrónica Zenner's</h3>
+            </div>
+          </div>
+          <h2 class="recibo-titulo">COMPROBANTE DE ENTREGA DE EQUIPO</h2>
+          <div class="recibo-id">{{ r.id }} — {{ formatDate(r.fecha) }}</div>
+          <div class="recibo-cliente">
+            <h4>Datos del Cliente</h4>
+            <table>
+              <tr><td><strong>Nombre:</strong></td><td>{{ r.cliente.nombre }}</td></tr>
+              <tr><td><strong>Dirección:</strong></td><td>{{ r.cliente.direccion }}</td></tr>
+              <tr><td><strong>Teléfono:</strong></td><td>{{ r.cliente.telefono }}</td></tr>
+            </table>
+          </div>
+          <div class="recibo-aparato">
+            <h4>Equipo Entregado</h4>
+            <table>
+              <thead><tr><th>Tipo</th><th>Marca</th><th>Modelo</th><th>N° Serie</th></tr></thead>
+              <tbody><tr><td>{{ r.aparato.tipo }}</td><td>{{ r.aparato.marca }}</td><td>{{ r.aparato.modelo }}</td><td>{{ r.aparato.numSerie }}</td></tr></tbody>
+            </table>
+          </div>
+          <div class="recibo-entrega-info">
+            <h4>Detalles de la Entrega</h4>
+            <table>
+              <tr><td><strong>Fecha de entrega:</strong></td><td>{{ formatDate(r.fecha) }}</td></tr>
+              <tr><td><strong>Costo de reparación:</strong></td><td>{{ formatCurrency(r.costoReparacion) }}</td></tr>
+              <tr><td><strong>Observaciones finales:</strong></td><td>{{ r.observaciones || 'Sin observaciones' }}</td></tr>
+            </table>
+          </div>
+          @if (pendientes().length > 0) {
+            <div class="recibo-pendientes">
+              <h4>Equipos que continúan en el taller</h4>
+              <table>
+                <thead><tr><th>ID</th><th>Cliente</th><th>Tipo</th><th>Marca</th><th>Modelo</th></tr></thead>
+                <tbody>
+                  @for (p of pendientes(); track p.id) {
+                    <tr><td>{{ p.id }}</td><td>{{ p.cliente.nombre }}</td><td>{{ p.aparato.tipo }}</td><td>{{ p.aparato.marca }}</td><td>{{ p.aparato.modelo }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+          <div class="recibo-footer">
+            <div class="firma-line"><span>Firma del Técnico</span></div>
+            <div class="firma-line"><span>Firma del Cliente</span></div>
+          </div>
+        </div>
+      }
+      @if (pdfTipo() === 'presupuesto') {
+        <div class="recibo-preview">
+          <div class="recibo-header-row">
+            <div class="recibo-contacto">
+              <p><strong>Email:</strong> electronica.zenner&#64;gmail.com</p>
+              <p><strong>Teléfono:</strong> 3886104298</p>
+              <p><strong>Responsable:</strong> Juan Carlos Ochoa</p>
+            </div>
+            <div class="recibo-logo">
+              <h3>Electrónica Zenner's</h3>
+            </div>
+          </div>
+          <h2 class="recibo-titulo">PRESUPUESTO DE REPARACIÓN</h2>
+          <div class="recibo-id">{{ r.id }} — {{ formatDate(r.fecha) }}</div>
+          <div class="recibo-cliente">
+            <h4>Datos del Cliente</h4>
+            <table>
+              <tr><td><strong>Nombre:</strong></td><td>{{ r.cliente.nombre }}</td></tr>
+              <tr><td><strong>Dirección:</strong></td><td>{{ r.cliente.direccion }}</td></tr>
+              <tr><td><strong>Teléfono:</strong></td><td>{{ r.cliente.telefono }}</td></tr>
+            </table>
+          </div>
+          <div class="recibo-aparato">
+            <h4>Detalles del Equipo</h4>
+            <table>
+              <thead><tr><th>Tipo</th><th>Marca</th><th>Modelo</th><th>N° Serie</th></tr></thead>
+              <tbody><tr><td>{{ r.aparato.tipo }}</td><td>{{ r.aparato.marca }}</td><td>{{ r.aparato.modelo }}</td><td>{{ r.aparato.numSerie }}</td></tr></tbody>
+            </table>
+          </div>
+          <div class="recibo-observaciones">
+            <h4>Diagnóstico</h4>
+            <div class="observaciones-box">{{ r.presupuesto?.diagnostico || 'Sin diagnóstico cargado' }}</div>
+          </div>
+          <div class="presupuesto-costo">
+            <span class="presupuesto-costo-label">Costo de la reparación:</span>
+            <span class="presupuesto-costo-valor">{{ formatCurrency(r.presupuesto?.costo || 0) }}</span>
+          </div>
+          <div class="presupuesto-validez">
+            <p>Este presupuesto tiene una validez de 15 días a partir de la fecha de emisión.</p>
+          </div>
+          <div class="recibo-footer">
+            <div class="firma-line"><span>Firma del Técnico</span></div>
+          </div>
+        </div>
+      }
+    }
+  </div>
 </div>

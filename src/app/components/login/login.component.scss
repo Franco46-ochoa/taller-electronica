@@ -1,0 +1,104 @@
+:host {
+  --charcoal: #1E2328;
+  --slate: #3A4452;
+  --cyan: #00C2E8;
+  --white: #FFFFFF;
+}
+
+.login-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--slate);
+  font-family: system-ui, 'Segoe UI', sans-serif;
+  padding: 1rem;
+}
+
+.login-card {
+  background: var(--charcoal);
+  border: 1px solid var(--cyan);
+  border-radius: 16px;
+  padding: 2.5rem 2rem;
+  text-align: center;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+}
+
+.login-logo {
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  filter: saturate(0.8) brightness(1.05);
+}
+
+.login-title {
+  color: var(--white);
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.login-subtitle {
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 1.5rem;
+}
+
+.login-error {
+  background: rgba(231, 76, 60, 0.15);
+  border: 1px solid #e74c3c;
+  color: #ff8a80;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+}
+
+.btn-google {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.85rem 1.5rem;
+  background: var(--cyan);
+  border: 2px solid var(--cyan);
+  border-radius: 8px;
+  color: var(--charcoal);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: inherit;
+
+  &:hover:not(:disabled) {
+    background: transparent;
+    color: var(--cyan);
+    box-shadow: 0 4px 15px rgba(0, 194, 232, 0.4);
+  }
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+}
+
+.google-icon {
+  flex-shrink: 0;
+}
+
+.login-spinner {
+  width: 18px;
+  height: 18px;
+  border: 3px solid rgba(30, 35, 40, 0.3);
+  border-top-color: var(--charcoal);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

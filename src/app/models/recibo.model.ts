@@ -13,6 +13,12 @@ export interface Aparato {
 
 export type EstadoRecibo = 'Pendiente' | 'Entregado';
 
+export interface Presupuesto {
+  diagnostico: string;
+  costo: number;
+  fecha: string;
+}
+
 export interface Recibo {
   id: string;
   fecha: Date;
@@ -21,6 +27,7 @@ export interface Recibo {
   observaciones: string;
   estado: EstadoRecibo;
   costoReparacion: number;
+  presupuesto?: Presupuesto;
 }
 
 export interface Balance {
