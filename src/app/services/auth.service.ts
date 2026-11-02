@@ -1,86 +1,65 @@
 import { Injectable, signal } from '@angular/core';
-import { getApp, getApps, initializeApp } from 'firebase/app';
-import {
-  getAuth,
-  Auth,
-  User,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signInWithCredential,
-  signOut,
-  onAuthStateChanged
-} from 'firebase/auth';
-import { Capacitor } from '@capacitor/core';
-import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
-import { firebaseConfig } from '../../environments/firebase';
 
-const WHITELIST: string[] = [
-  'electronica.zenner@gmail.com',
-  // TODO: agregar los correos autorizados restantes
-];
+// Credenciales almacenadas como hashes SHA-256 (nunca en texto plano).
+// Usuario: sha256('zenners') — se compara en minúsculas, sin importar mayúsculas.
+// Contraseña: sha256 de la contraseña real.
+const USUARIO_HASH = 'f97047cd2d0bd14008e154790d13864364cbe7d76b40a0844bb7ceba83ad06c5';
+const PASSWORD_HASH = 'c68317d6abefa068e1887c1680d52f7100f15140e503b65850ceb5cf9f9332b4';
+const SESSION_KEY = 'taller_auth_session';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
-  private auth: Auth;
-
   isAuthenticated = signal(false);
-  currentUser = signal<User | null>(null);
+  usuarioActual = signal<string | null>(null);
   authReady = signal(false);
   errorMsg = signal<string | null>(null);
 
   constructor() {
-    this.auth = getAuth(getApps().length ? getApp() : initializeApp(firebaseConfig));
-    onAuthStateChanged(this.auth, (user) => {
-      if (user && this.estaAutorizado(user.email)) {
-        this.currentUser.set(user);
-        this.isAuthenticated.set(true);
-      } else {
-        this.currentUser.set(null);
-        this.isAuthenticated.set(false);
-      }
-      this.authReady.set(true);
-    });
+    const sesion = localStorage.getItem(SESSION_KEY);
+    if (sesion) {
+      this.usuarioActual.set(sesion);
+      this.isAuthenticated.set(true);
+    }
+    this.authReady.set(true);
   }
 
-  estaAutorizado(email: string | null): boolean {
-    return !!email && WHITELIST.includes(email.toLowerCase());
+  private async hash256(texto: string): Promise<string> {
+    const data = new TextEncoder().encode(texto);
+    const buffer = await crypto.subtle.digest('SHA-256', data);
+    return [...new Uint8Array(buffer)]
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
   }
 
-  async loginWithGoogle(): Promise<boolean> {
+  async login(usuario: string, password: string): Promise<boolean> {
     this.errorMsg.set(null);
     try {
-      let email: string | null = null;
+      const usuarioNormalizado = usuario.trim().toLowerCase();
+      const [uHash, pHash] = await Promise.all([
+        this.hash256(usuarioNormalizado),
+        this.hash256(password)
+      ]);
 
-      if (Capacitor.isNativePlatform()) {
-        const result = await FirebaseAuthentication.signInWithGoogle();
-        const idToken = result.credential?.idToken;
-        if (!idToken) throw new Error('No se obtuvo credencial de Google');
-        const credential = GoogleAuthProvider.credential(idToken);
-        const userCred = await signInWithCredential(this.auth, credential);
-        email = userCred.user.email;
-      } else {
-        const provider = new GoogleAuthProvider();
-        const userCred = await signInWithPopup(this.auth, provider);
-        email = userCred.user.email;
+      if (uHash === USUARIO_HASH && pHash === PASSWORD_HASH) {
+        localStorage.setItem(SESSION_KEY, usuarioNormalizado);
+        this.usuarioActual.set(usuarioNormalizado);
+        this.isAuthenticated.set(true);
+        return true;
       }
 
-      if (!this.estaAutorizado(email)) {
-        await signOut(this.auth);
-        this.errorMsg.set('No estás autorizado para acceder');
-        return false;
-      }
-      return true;
-    } catch (error: any) {
-      if (error?.code !== 'auth/popup-closed-by-user' && error?.message !== 'The user canceled the sign-in flow.') {
-        this.errorMsg.set('Error al iniciar sesión: ' + (error?.message || ''));
-      }
+      this.errorMsg.set('Usuario o contraseña incorrectos');
+      return false;
+    } catch {
+      this.errorMsg.set('Error al iniciar sesión');
       return false;
     }
   }
 
-  async logout(): Promise<void> {
-    await signOut(this.auth);
+  logout(): void {
+    localStorage.removeItem(SESSION_KEY);
+    this.usuarioActual.set(null);
+    this.isAuthenticated.set(false);
   }
 }

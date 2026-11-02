@@ -24,8 +24,8 @@ export class DashboardComponent implements OnInit {
   auth = inject(AuthService);
   private router = inject(Router);
 
-  async logout() {
-    await this.auth.logout();
+  logout() {
+    this.auth.logout();
     this.router.navigate(['/login']);
   }
 

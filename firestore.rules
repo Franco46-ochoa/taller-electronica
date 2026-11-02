@@ -9,7 +9,9 @@ service cloud.firestore {
         ];
     }
     match /{document=**} {
-      allow read, write: if isWhitelisted();
+      // TODO: restringir nuevamente a isWhitelisted() cuando se reactive el login.
+      // Actualmente abierto porque la app no requiere autenticacion.
+      allow read, write: if true;
     }
   }
 }

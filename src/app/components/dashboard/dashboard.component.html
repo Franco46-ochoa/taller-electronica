@@ -4,7 +4,7 @@
       <img src="assets/Logo-zenners.jpg" alt="Logo" class="header-logo">
     </div>
     <div class="header-user">
-      <span class="user-email"><i class="bi bi-person-circle"></i> {{ auth.currentUser()?.email }}</span>
+      <span class="user-email"><i class="bi bi-person-circle"></i> {{ auth.usuarioActual() }}</span>
       <button class="btn-logout" (click)="logout()">
         <i class="bi bi-box-arrow-left"></i> Cerrar sesión
       </button>
