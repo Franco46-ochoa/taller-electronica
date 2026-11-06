@@ -466,7 +466,7 @@
               </div>
 
               <h2 class="recibo-titulo">RECIBO DE RECEPCIÓN DE APARATO ELECTRÓNICO</h2>
-              <div class="recibo-id">{{ r.id }}</div>
+              <div class="recibo-id">{{ r.id }} — {{ formatDate(r.fecha) }}</div>
 
               <div class="recibo-cliente">
                 <h4>Datos del Cliente</h4>
@@ -759,7 +759,7 @@
             </div>
           </div>
           <h2 class="recibo-titulo">RECIBO DE RECEPCIÓN DE APARATO ELECTRÓNICO</h2>
-          <div class="recibo-id">{{ r.id }}</div>
+          <div class="recibo-id">{{ r.id }} — {{ formatDate(r.fecha) }}</div>
           <div class="recibo-cliente">
             <h4>Datos del Cliente</h4>
             <table>
