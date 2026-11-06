@@ -209,7 +209,7 @@
 
 .pdf-off-screen {
   position: fixed;
-  top: -9999px;
+  top: 0;
   left: -9999px;
   width: 210mm;
   z-index: -1;

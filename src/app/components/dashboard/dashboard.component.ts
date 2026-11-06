@@ -410,12 +410,34 @@ export class DashboardComponent implements OnInit {
     this.pdfTipo.set(tipo);
     await new Promise(r => setTimeout(r, 100));
     const elemento = this.pdfPrint.nativeElement;
-    const canvas = await html2canvas(elemento, { scale: 2, useCORS: true });
+    const canvas = await html2canvas(elemento, {
+      scale: 2,
+      useCORS: true,
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: elemento.scrollWidth,
+      windowHeight: elemento.scrollHeight
+    });
     const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
     const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+
+    if (pdfHeight <= pageHeight) {
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    } else {
+      let heightLeft = pdfHeight;
+      let position = 0;
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+      while (heightLeft > 0) {
+        position -= pageHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+      }
+    }
     const prefijo = tipo === 'entrega' ? 'Entrega' : tipo === 'presupuesto' ? 'Presupuesto' : 'Recibo';
     const fileName = `${prefijo}_${recibo.id}.pdf`;
 
