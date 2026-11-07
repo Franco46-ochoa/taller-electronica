@@ -798,7 +798,7 @@
             </div>
           </div>
           <h2 class="recibo-titulo">COMPROBANTE DE ENTREGA DE EQUIPO</h2>
-          <div class="recibo-id">{{ r.id }} — {{ formatDate(r.fecha) }}</div>
+          <div class="recibo-id">{{ r.id }} — {{ formatDate(r.fechaEntrega || r.fecha) }}</div>
           <div class="recibo-cliente">
             <h4>Datos del Cliente</h4>
             <table>
@@ -817,24 +817,15 @@
           <div class="recibo-entrega-info">
             <h4>Detalles de la Entrega</h4>
             <table>
-              <tr><td><strong>Fecha de entrega:</strong></td><td>{{ formatDate(r.fecha) }}</td></tr>
+              <tr><td><strong>Fecha de ingreso:</strong></td><td>{{ formatDate(r.fecha) }}</td></tr>
+              <tr><td><strong>Fecha de entrega:</strong></td><td>{{ formatDate(r.fechaEntrega || r.fecha) }}</td></tr>
               <tr><td><strong>Costo de reparación:</strong></td><td>{{ formatCurrency(r.costoReparacion) }}</td></tr>
               <tr><td><strong>Observaciones finales:</strong></td><td>{{ r.observaciones || 'Sin observaciones' }}</td></tr>
             </table>
           </div>
-          @if (pendientes().length > 0) {
-            <div class="recibo-pendientes">
-              <h4>Equipos que continúan en el taller</h4>
-              <table>
-                <thead><tr><th>ID</th><th>Cliente</th><th>Tipo</th><th>Marca</th><th>Modelo</th></tr></thead>
-                <tbody>
-                  @for (p of pendientes(); track p.id) {
-                    <tr><td>{{ p.id }}</td><td>{{ p.cliente.nombre }}</td><td>{{ p.aparato.tipo }}</td><td>{{ p.aparato.marca }}</td><td>{{ p.aparato.modelo }}</td></tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          }
+          <div class="presupuesto-validez">
+            <p>El trabajo realizado posee una garantía de 3 meses a partir de la fecha de entrega.</p>
+          </div>
           <div class="recibo-footer">
             <div class="firma-line"><span>Firma del Técnico</span></div>
             <div class="firma-line"><span>Firma del Cliente</span></div>

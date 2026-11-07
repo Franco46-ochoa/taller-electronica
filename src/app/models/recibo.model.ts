@@ -28,6 +28,7 @@ export interface Recibo {
   estado: EstadoRecibo;
   costoReparacion: number;
   presupuesto?: Presupuesto;
+  fechaEntrega?: Date;
 }
 
 export interface Balance {

@@ -82,7 +82,8 @@ export class ReciboService {
     await updateDoc(docRef, {
       estado: 'Entregado',
       costoReparacion: costo,
-      observaciones: observacionesFinales || ''
+      observaciones: observacionesFinales || '',
+      fechaEntrega: new Date().toISOString()
     });
 
     return true;
@@ -149,7 +150,8 @@ export class ReciboService {
     const data = docSnap.data ? docSnap.data() : docSnap;
     return {
       ...data,
-      fecha: new Date(data.fecha)
+      fecha: new Date(data.fecha),
+      fechaEntrega: data.fechaEntrega ? new Date(data.fechaEntrega) : undefined
     };
   }
 }
