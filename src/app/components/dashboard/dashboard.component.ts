@@ -73,7 +73,7 @@ export class DashboardComponent implements OnInit {
     aparatoMarca: ['', Validators.required],
     aparatoModelo: ['', Validators.required],
     aparatoNumSerie: ['', Validators.required],
-    observaciones: ['', Validators.required],
+    observaciones: [''],
     costoReparacion: [0, [Validators.required, Validators.min(0)]],
     fechaEntrega: ['']
   });
