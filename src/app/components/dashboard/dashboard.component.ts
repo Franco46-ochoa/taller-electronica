@@ -74,7 +74,8 @@ export class DashboardComponent implements OnInit {
     aparatoModelo: ['', Validators.required],
     aparatoNumSerie: ['', Validators.required],
     observaciones: ['', Validators.required],
-    costoReparacion: [0, [Validators.required, Validators.min(0)]]
+    costoReparacion: [0, [Validators.required, Validators.min(0)]],
+    fechaEntrega: ['']
   });
 
   recibosFiltrados = signal<Recibo[]>([]);
@@ -260,7 +261,10 @@ export class DashboardComponent implements OnInit {
       aparatoModelo: recibo.aparato.modelo,
       aparatoNumSerie: recibo.aparato.numSerie,
       observaciones: recibo.observaciones,
-      costoReparacion: recibo.costoReparacion
+      costoReparacion: recibo.costoReparacion,
+      fechaEntrega: recibo.fechaEntrega
+        ? new Date(recibo.fechaEntrega).toISOString().split('T')[0]
+        : ''
     });
     this.showModalEditar.set(true);
   }
@@ -276,7 +280,7 @@ export class DashboardComponent implements OnInit {
 
     try {
       const f = this.formularioEdicion.value;
-      await this.servicio.editarRecibo(recibo.id, {
+      const cambios: Record<string, any> = {
         cliente: {
           nombre: f.clienteNombre,
           direccion: f.clienteDireccion,
@@ -290,7 +294,11 @@ export class DashboardComponent implements OnInit {
         },
         observaciones: f.observaciones,
         costoReparacion: f.costoReparacion
-      });
+      };
+      if (f.fechaEntrega) {
+        cambios['fechaEntrega'] = `${f.fechaEntrega}T12:00:00`;
+      }
+      await this.servicio.editarRecibo(recibo.id, cambios);
 
       this.showModalEditar.set(false);
       this.reciboEditando.set(null);
